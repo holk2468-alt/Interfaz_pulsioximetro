@@ -96,28 +96,27 @@ async def get_usuarios(
         query = query.eq("cedula", cedula_usuario)
 
     elif rol_usuario == "medico":
-        # Un médico puede ver a los pacientes y a sí mismo.
-        # Primero, se restringe la consulta a los pacientes.
-        query = query.eq("rol", "paciente")
-        
-        # Si se busca una cédula específica, el médico solo la ve si es la suya o la de un paciente.
-        if cedula and cedula != cedula_usuario:
-            # Si la cédula es de otro usuario, solo se aplica el filtro si es paciente.
-            query = query.eq("cedula", cedula)
-        elif cedula == cedula_usuario:
-            # Si el médico busca su propia cédula, se modifica la consulta para incluirse.
-            # Se usa `or` para incluir su propia cédula y el rol de paciente.
-            query = supabase.table("usuarios").select("cedula", "nombre", "apellido", "fecha_nacimiento", "genero", "rol").or_(f"cedula.eq.{cedula_usuario},rol.eq.paciente")
-        
+        # Un médico puede ver a todos los pacientes y a sí mismo.
+        # Creamos una lista de las cédulas que el médico puede ver.
+        # Si se especifica una cédula, el médico solo puede verla si es la suya o si el rol es paciente.
+        if cedula:
+            if cedula == cedula_usuario:
+                query = query.eq("cedula", cedula_usuario)
+            else:
+                query = query.eq("cedula", cedula).eq("rol", "paciente")
+        else:
+            # Si no se especifica cédula, el médico ve a todos los pacientes Y a sí mismo.
+            query = query.or_(f"rol.eq.paciente, cedula.eq.{cedula_usuario}")
+            
     elif rol_usuario == "admin":
-        # Un administrador puede ver a todos los usuarios. No se aplican restricciones de rol por defecto.
+        # Un administrador puede ver a todos los usuarios.
         if cedula:
             query = query.eq("cedula", cedula)
-
+        
     else:
         raise HTTPException(status_code=403, detail="Rol de usuario no válido")
 
-    # Filtros para médicos y administradores, se aplica a la consulta ya filtrada
+    # Filtros adicionales para médicos y administradores
     if rol_usuario in ["medico", "admin"]:
         if genero:
             query = query.eq("genero", genero)
@@ -125,12 +124,13 @@ async def get_usuarios(
             query = query.gte("fecha_nacimiento", fecha_nacimiento_min)
         if fecha_nacimiento_max:
             query = query.lte("fecha_nacimiento", fecha_nacimiento_max)
-        if rol and rol_usuario == "admin":
-            # Solo el admin puede filtrar por rol. Los médicos ya tienen el filtro de rol='paciente'
-            query = query.eq("rol", rol)
-        elif rol and rol_usuario == "medico" and rol != "paciente":
-            # Un médico no puede filtrar por roles que no sean 'paciente'
-            raise HTTPException(status_code=403, detail="Un médico solo puede filtrar por el rol de 'paciente'.")
+        if rol:
+            if rol_usuario == "medico" and rol != "paciente":
+                # Un médico solo puede filtrar por el rol de 'paciente'
+                raise HTTPException(status_code=403, detail="Un médico solo puede filtrar por el rol de 'paciente'.")
+            elif rol_usuario == "admin":
+                # Un administrador puede filtrar por cualquier rol
+                query = query.eq("rol", rol)
         
     query = query.order("cedula")
     result = query.execute()
@@ -142,8 +142,12 @@ async def get_usuarios(
     if rol_usuario == "paciente":
         return {"usuario": filas[0]}
     else:
-        return {"usuarios": filas}
-
+        # Esto asegura que si el resultado es una sola fila (ej. un médico que se busca a sí mismo),
+        # se devuelva como una lista para consistencia.
+        if isinstance(filas, list):
+            return {"usuarios": filas}
+        else:
+            return {"usuarios": [filas]}
 
 # -----------------------
 # CREAR USUARIOS
