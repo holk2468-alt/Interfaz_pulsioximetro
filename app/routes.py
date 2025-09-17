@@ -154,6 +154,7 @@ async def get_usuarios(
         return {"usuario": filas[0]}
     else:
         return {"usuarios": filas}
+        
 # -----------------------
 # CREAR USUARIOS
 # -----------------------
