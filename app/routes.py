@@ -90,47 +90,45 @@ async def get_usuarios(
 
     # Lógica de permisos
     if rol_usuario == "paciente":
-        # Un paciente solo puede ver su propio perfil
         if cedula and cedula != cedula_usuario:
             raise HTTPException(status_code=403, detail="No autorizado a ver este usuario")
         query = query.eq("cedula", cedula_usuario)
 
     elif rol_usuario == "medico":
         if cedula:
-            # Si el médico busca su propia cédula, no hay problema
             if cedula == cedula_usuario:
                 query = query.eq("cedula", cedula_usuario)
             else:
-                # Validar el rol de la cédula que se está buscando
+                # Paso 1: Intentamos obtener el rol del usuario buscado.
+                # Si falla, significa que la cédula no existe.
                 try:
-                    target_user = supabase.table("usuarios").select("rol").eq("cedula", cedula).single().execute()
-                    if target_user.data and target_user.data.get("rol") in ["medico", "admin"]:
-                        raise HTTPException(status_code=403, detail="No tiene permiso para buscar a este tipo de usuario.")
-                except Exception as e:
-                    # Este bloque captura el error si la cédula no existe
+                    target_user_result = supabase.table("usuarios").select("rol").eq("cedula", cedula).single().execute()
+                    target_rol = target_user_result.data.get("rol")
+                except:
                     raise HTTPException(status_code=404, detail="Usuario no encontrado.")
                 
-                # Si es un paciente, se busca normalmente
+                # Paso 2: Si el usuario existe, validamos los permisos.
+                if target_rol in ["medico", "admin"]:
+                    raise HTTPException(status_code=403, detail="No tiene permiso para buscar a este tipo de usuario.")
+                
+                # Paso 3: Si es un paciente, se procede con la búsqueda.
                 query = query.eq("cedula", cedula)
         else:
-            # Si no se especifica cédula, el médico ve a todos los pacientes Y a sí mismo.
             query = query.or_(f"rol.eq.paciente, cedula.eq.{cedula_usuario}")
             
     elif rol_usuario == "admin":
-        # Un administrador puede ver a todos los usuarios.
         if cedula:
-            # Verificar si la cédula existe antes de continuar
+            # Para el admin, solo verificamos si el usuario existe
             try:
                 supabase.table("usuarios").select("cedula").eq("cedula", cedula).single().execute()
-            except Exception as e:
+            except:
                 raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-            
             query = query.eq("cedula", cedula)
         
     else:
         raise HTTPException(status_code=403, detail="Rol de usuario no válido")
 
-    # Filtros adicionales para médicos y administradores
+    # Filtros adicionales
     if rol_usuario in ["medico", "admin"]:
         if genero:
             query = query.eq("genero", genero)
@@ -148,17 +146,14 @@ async def get_usuarios(
     result = query.execute()
     filas = result.data or []
 
+    # Se ajusta la respuesta final
     if not filas:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     if rol_usuario == "paciente":
         return {"usuario": filas[0]}
     else:
-        if isinstance(filas, list):
-            return {"usuarios": filas}
-        else:
-            return {"usuarios": [filas]}
-
+        return {"usuarios": filas}
 # -----------------------
 # CREAR USUARIOS
 # -----------------------
