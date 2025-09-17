@@ -96,14 +96,18 @@ async def get_usuarios(
         query = query.eq("cedula", cedula_usuario)
 
     elif rol_usuario == "medico":
-        # Un médico puede ver a todos los pacientes y a sí mismo.
-        # Creamos una lista de las cédulas que el médico puede ver.
-        # Si se especifica una cédula, el médico solo puede verla si es la suya o si el rol es paciente.
         if cedula:
+            # Si el médico busca su propia cédula, no hay problema
             if cedula == cedula_usuario:
                 query = query.eq("cedula", cedula_usuario)
             else:
-                query = query.eq("cedula", cedula).eq("rol", "paciente")
+                # Antes de buscar, validamos el rol de la cédula que se está buscando
+                target_user = supabase.table("usuarios").select("rol").eq("cedula", cedula).single().execute()
+                if target_user.data and target_user.data.get("rol") in ["medico", "admin"]:
+                    raise HTTPException(status_code=403, detail="No tiene permiso para buscar a este tipo de usuario.")
+                
+                # Si es un paciente, se busca normalmente
+                query = query.eq("cedula", cedula)
         else:
             # Si no se especifica cédula, el médico ve a todos los pacientes Y a sí mismo.
             query = query.or_(f"rol.eq.paciente, cedula.eq.{cedula_usuario}")
@@ -126,10 +130,8 @@ async def get_usuarios(
             query = query.lte("fecha_nacimiento", fecha_nacimiento_max)
         if rol:
             if rol_usuario == "medico" and rol != "paciente":
-                # Un médico solo puede filtrar por el rol de 'paciente'
                 raise HTTPException(status_code=403, detail="Un médico solo puede filtrar por el rol de 'paciente'.")
             elif rol_usuario == "admin":
-                # Un administrador puede filtrar por cualquier rol
                 query = query.eq("rol", rol)
         
     query = query.order("cedula")
@@ -142,8 +144,6 @@ async def get_usuarios(
     if rol_usuario == "paciente":
         return {"usuario": filas[0]}
     else:
-        # Esto asegura que si el resultado es una sola fila (ej. un médico que se busca a sí mismo),
-        # se devuelva como una lista para consistencia.
         if isinstance(filas, list):
             return {"usuarios": filas}
         else:
