@@ -14,7 +14,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # --- MODELO PARA REGISTRO ---
 
-class PacienteRegister(BaseModel): # <-- Nombre del modelo corregido
+class PacienteRegister(BaseModel):
     nombre: str
     correo: EmailStr
     password: str
@@ -26,25 +26,29 @@ class PacienteRegister(BaseModel): # <-- Nombre del modelo corregido
             raise ValueError("La cédula solo puede contener números")
         return v
 
-
-
 # -----------------------
 # REGISTRO PARA PACIENTES
 # -----------------------
+router = APIRouter()
 @router.post("/register_paciente")
 async def register_paciente(new_paciente: PacienteRegister):
-    existing = supabase.table("usuarios").select("cedula").eq("cedula", new_paciente.cedula).execute()
-    if existing.data:
-        raise HTTPException(status_code=400, detail="Cédula ya registrada")
-
-    # El resto de tu lógica de registro
-    data_to_insert = new_paciente.model_dump()
-    password_to_hash = data_to_insert.pop("password")
-    data_to_insert["password_hash"] = hash_password(password_to_hash)
-    data_to_insert["rol"] = "paciente"
-
-    supabase.table("usuarios").insert(data_to_insert).execute()
-    return {"mensaje": "Usuario registrado exitosamente como paciente"}
+    # Pydantic valida automáticamente el modelo aquí.
+    # Si la cédula contiene letras, el validador ya ha generado un error 422.
+    # Por lo tanto, no es necesario realizar una validación adicional.
+    
+    # Verificar si la cédula ya existe en la base de datos
+    existing = supabase.table("usuarios").select("cedula").eq("cedula", new_paciente.cedula).execute()
+    if existing.data:
+        raise HTTPException(status_code=400, detail="Cédula ya registrada")
+    
+    # El resto de tu lógica de registro
+    data_to_insert = new_paciente.model_dump()
+    password_to_hash = data_to_insert.pop("password")
+    data_to_insert["password_hash"] = hash_password(password_to_hash)
+    data_to_insert["rol"] = "paciente"
+    
+    supabase.table("usuarios").insert(data_to_insert).execute()
+    return {"mensaje": "Usuario registrado exitosamente como paciente"}
 # -----------------------
 # LOGIN
 # -----------------------
