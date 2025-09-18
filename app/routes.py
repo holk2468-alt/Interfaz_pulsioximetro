@@ -4,7 +4,7 @@ from app.database import supabase
 from app.auth import verify_password, create_access_token, decode_token, hash_password
 
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr, validator
 from typing import Optional
 
 router = APIRouter()
@@ -13,19 +13,18 @@ router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # --- MODELO PARA REGISTRO ---
-from pydantic import BaseModel, EmailStr, validator
 
-class RegisterPaciente(BaseModel):
-    nombre: str
-    correo: EmailStr
-    password: str
-    cedula: str
+class PacienteRegister(BaseModel): # <-- Nombre del modelo corregido
+    nombre: str
+    correo: EmailStr
+    password: str
+    cedula: str
 
-    @validator("cedula")
-    def validar_cedula(cls, v):
-        if not v.isdigit():
-            raise ValueError("La cédula solo puede contener números")
-        return v
+    @validator("cedula")
+    def validar_cedula(cls, v):
+        if not v.isdigit():
+            raise ValueError("La cédula solo puede contener números")
+        return v
 
 
 
