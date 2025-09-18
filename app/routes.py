@@ -27,11 +27,13 @@ class PacienteRegister(BaseModel):
 # -----------------------
 @router.post("/register_paciente")
 async def register_paciente(new_paciente: PacienteRegister):
-    try:
-        existing = supabase.table("usuarios").select("cedula").eq("cedula", new_paciente.cedula).execute()
-        if existing.data:
-            raise HTTPException(status_code=400, detail="Cédula ya registrada")
+    # 1. Verificar si la cédula ya existe ANTES de hacer el try-except
+    existing = supabase.table("usuarios").select("cedula").eq("cedula", new_paciente.cedula).execute()
+    if existing.data:
+        raise HTTPException(status_code=400, detail="Cédula ya registrada")
 
+    # 2. El try-except ahora maneja solo errores de inserción
+    try:
         data_to_insert = new_paciente.dict()
         password_to_hash = data_to_insert.pop("password")
         data_to_insert["password_hash"] = hash_password(password_to_hash)
@@ -41,8 +43,7 @@ async def register_paciente(new_paciente: PacienteRegister):
         return {"mensaje": "Usuario registrado exitosamente como paciente"}
     except Exception as e:
         print(f"Error en el registro: {e}")
-        raise HTTPException(status_code=500, detail="Ocurrió un error en el registro")
-
+        raise HTTPException(status_code=500, detail="Ocurrió un error inesperado en el registro")
 
 # -----------------------
 # LOGIN
