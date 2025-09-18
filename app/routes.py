@@ -16,10 +16,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 class PacienteRegister(BaseModel):
     nombre: str
     apellido: str
-    cedula: str
+    # Utiliza 'Field' para aplicar la validación de la cédula
+    # La expresión regular r'^\d+$' asegura que sean solo dígitos (números)
+    cedula: str = Field(..., regex=r'^\d+$')
     password: str
     fecha_nacimiento: str
-    genero: str = Field(..., pattern="^(M|F)$")
+    genero: str
 
 
 # -----------------------
