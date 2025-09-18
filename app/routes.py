@@ -13,19 +13,20 @@ router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # --- MODELO PARA REGISTRO ---
-class PacienteRegister(BaseModel):
-    nombre: str
-    apellido: str
-    cedula: str
-    password: str
-    fecha_nacimiento: str
-    genero: str
+from pydantic import BaseModel, EmailStr, validator
 
-    @validator('cedula')
-    def validate_cedula(cls, v):
+class RegisterPaciente(BaseModel):
+    nombre: str
+    correo: EmailStr
+    password: str
+    cedula: str
+
+    @validator("cedula")
+    def validar_cedula(cls, v):
         if not v.isdigit():
-            raise ValueError('La cédula solo debe contener números.')
+            raise ValueError("La cédula solo puede contener números")
         return v
+
 
 
 # -----------------------
