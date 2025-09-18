@@ -16,12 +16,16 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 class PacienteRegister(BaseModel):
     nombre: str
     apellido: str
-    # Utiliza 'Field' para aplicar la validación de la cédula
-    # La expresión regular r'^\d+$' asegura que sean solo dígitos (números)
-    cedula: str = Field(..., regex=r'^\d+$')
+    cedula: str
     password: str
     fecha_nacimiento: str
     genero: str
+
+    @validator('cedula')
+    def validate_cedula(cls, v):
+        if not v.isdigit():
+            raise ValueError('La cédula solo debe contener números.')
+        return v
 
 
 # -----------------------
