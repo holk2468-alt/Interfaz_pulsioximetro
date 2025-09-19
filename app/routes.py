@@ -21,6 +21,8 @@ class PacienteRegister(BaseModel):
     apellido: str
     password: str
     cedula: str
+    fecha_nacimiento: date # Campo de fecha de nacimiento
+    genero: str # Campo de género
 
     @validator("cedula")
     def validar_cedula(cls, v):
