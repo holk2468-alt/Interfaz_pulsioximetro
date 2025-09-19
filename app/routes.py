@@ -18,7 +18,6 @@ from fastapi import HTTPException
 # --- MODELO PARA REGISTRO ---
 class PacienteRegister(BaseModel):
     nombre: str
-    correo: EmailStr
     password: str
     cedula: str
 
