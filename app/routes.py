@@ -4,7 +4,7 @@ from app.database import supabase
 from app.auth import verify_password, create_access_token, decode_token, hash_password
 
 from datetime import datetime
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 
 router = APIRouter()
