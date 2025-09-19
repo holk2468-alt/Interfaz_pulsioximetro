@@ -12,9 +12,11 @@ router = APIRouter()
 # OAuth2 para Swagger
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# --- MODELO PARA REGISTRO ---
+from pydantic import BaseModel, EmailStr, validator
+from fastapi import HTTPException
 
-lass PacienteRegister(BaseModel):
+# --- MODELO PARA REGISTRO ---
+class PacienteRegister(BaseModel):
     nombre: str
     correo: EmailStr
     password: str
@@ -31,8 +33,8 @@ lass PacienteRegister(BaseModel):
 # REGISTRO PARA PACIENTES
 # -----------------------
 @router.post("/register_paciente")
-@async def register_paciente(new_paciente: PacienteRegister):
-    # La validación de la cédula ya se hizo aquí de forma automática.
+async def register_paciente(new_paciente: PacienteRegister):
+    # Validación automática de la cédula ya ocurre por el validator ↑
     
     existing = supabase.table("usuarios").select("cedula").eq("cedula", new_paciente.cedula).execute()
     if existing.data:
@@ -45,6 +47,7 @@ lass PacienteRegister(BaseModel):
 
     supabase.table("usuarios").insert(data_to_insert).execute()
     return {"mensaje": "Usuario registrado exitosamente como paciente"}
+
 # -----------------------
 # LOGIN
 # -----------------------
