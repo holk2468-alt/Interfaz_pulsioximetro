@@ -316,7 +316,7 @@ async def delete_medicion(id: int, token: str = Depends(oauth2_scheme)):
 # -----------------------
 router.get("/mediciones")
 async def get_mediciones(
-    token: str = Depends(oauth2_scheme),
+    token: str = Depends(oauth2_scheme),
     cedula: str = None,
     rol: str = None,
     fecha_min: str = None,
