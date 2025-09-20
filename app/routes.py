@@ -45,8 +45,8 @@ async def register_paciente(new_paciente: PacienteRegister):
         # 2. Hashear la contraseña y preparar los datos
         data_to_insert = new_paciente.model_dump()
         password_to_hash = data_to_insert.pop("password")
-        # Corrección: se guarda en la columna 'password'
-        data_to_insert["password"] = hash_password(password_to_hash) 
+        # Corrección: se guarda en la columna 'password_hash'
+        data_to_insert["password_hash"] = hash_password(password_to_hash) 
         data_to_insert["rol"] = "paciente"
 
         # 3. Insertar en Supabase
