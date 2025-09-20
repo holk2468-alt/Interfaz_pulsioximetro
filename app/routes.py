@@ -326,36 +326,43 @@ async def get_mediciones(
     ritmo_min: Optional[int] = None,
     ritmo_max: Optional[int] = None,
 ):
-    usuario = decode_token(token)
+    try:
+        usuario = decode_token(token)
+    except:
+        raise HTTPException(status_code=401, detail="No autenticado o token inválido")
+
     if not usuario:
         raise HTTPException(status_code=401, detail="No autenticado")
 
-    rol_usuario = usuario["rol"]
-    cedula_usuario = str(usuario["sub"])
+    rol_usuario = usuario.get("rol")
+    cedula_usuario = str(usuario.get("sub"))
 
-    # La lógica de permisos ahora es más directa
+    if not rol_usuario or not cedula_usuario:
+        raise HTTPException(status_code=401, detail="Token no contiene la información necesaria")
+
+    query = supabase.table("mediciones").select("*")
+
+    # Lógica de permisos y filtros
     if rol_usuario == "paciente":
         # Un paciente solo puede ver sus propias mediciones.
-        # No se le permite filtrar por otras cédulas.
         if cedula and cedula != cedula_usuario:
             raise HTTPException(status_code=403, detail="No autorizado a ver mediciones de otro paciente")
-        query = supabase.table("mediciones").select("*").eq("cedula_paciente", cedula_usuario)
-        
+        query = query.eq("cedula_paciente", cedula_usuario)
+    
     elif rol_usuario == "medico":
-        # Un médico puede ver todas las mediciones de pacientes.
+        # Un médico puede ver las mediciones de todos los pacientes.
         usuarios_pacientes = supabase.table("usuarios").select("cedula").eq("rol", "paciente").execute().data or []
         cedulas_pacientes = [str(u["cedula"]) for u in usuarios_pacientes]
         
         if cedula:
             if cedula not in cedulas_pacientes:
                 raise HTTPException(status_code=403, detail="No autorizado a ver este paciente")
-            query = supabase.table("mediciones").select("*").eq("cedula_paciente", cedula)
+            query = query.eq("cedula_paciente", cedula)
         else:
-            query = supabase.table("mediciones").select("*").in_("cedula_paciente", cedulas_pacientes)
+            query = query.in_("cedula_paciente", cedulas_pacientes)
             
     elif rol_usuario == "admin":
         # Un admin puede ver todas las mediciones y aplicar filtros.
-        query = supabase.table("mediciones").select("*")
         if cedula:
             query = query.eq("cedula_paciente", cedula)
         if rol:
@@ -386,11 +393,9 @@ async def get_mediciones(
     if ritmo_max is not None:
         query = query.lte("ritmo_cardiaco", ritmo_max)
 
-    result = query.execute()
+    result = query.order("fecha_hora", desc=True).execute()
     filas = result.data or []
-
-    filas.sort(key=lambda x: x["fecha_hora"], reverse=True)
-
+    
     return {"mediciones": filas}
 # -----------------------
 # CONSULTAR ALERTAS
