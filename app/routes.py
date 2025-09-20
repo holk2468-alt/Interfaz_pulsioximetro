@@ -34,21 +34,43 @@ class PacienteRegister(BaseModel):
 # -----------------------
 # REGISTRO PARA PACIENTES
 # -----------------------
-@router.post("/register_paciente")
-async def register_paciente(new_paciente: PacienteRegister):
-    # Validación automática de la cédula ya ocurre por el validator ↑
-    
-    existing = supabase.table("usuarios").select("cedula").eq("cedula", new_paciente.cedula).execute()
-    if existing.data:
-        raise HTTPException(status_code=400, detail="Cédula ya registrada")
-    
-    data_to_insert = new_paciente.model_dump()
-    password_to_hash = data_to_insert.pop("password")
-    data_to_insert["password_hash"] = hash_password(password_to_hash)
-    data_to_insert["rol"] = "paciente"
+@router.post("/register_paciente", tags=["autenticacion"], status_code=status.HTTP_201_CREATED)
+async def register_paciente(nombre: str = Form(...), apellido: str = Form(...), cedula: str = Form(...), password: str = Form(...), fecha_nacimiento: date = Form(...), genero: str = Form(...)):
+    """
+    Registra un nuevo paciente en el sistema.
+    """
+    # Validaciones básicas
+    if len(cedula) > 10 or not cedula.isdigit():
+        raise HTTPException(status_code=422, detail="La cédula debe ser un número de hasta 10 dígitos.")
 
-    supabase.table("usuarios").insert(data_to_insert).execute()
-    return {"mensaje": "Usuario registrado exitosamente como paciente"}
+    if genero.upper() not in ["M", "F"]:
+        raise HTTPException(status_code=422, detail="El género debe ser 'M' o 'F'.")
+    
+    # Conversión del objeto de fecha a string
+    fecha_nacimiento_str = fecha_nacimiento.isoformat()
+
+    data_to_insert = {
+        "cedula": cedula,
+        "nombre": nombre,
+        "apellido": apellido,
+        "password": get_password_hash(password),
+        "rol": "paciente",
+        "genero": genero,
+        "fecha_nacimiento": fecha_nacimiento_str
+    }
+
+    try:
+        supabase.table("usuarios").insert(data_to_insert).execute()
+    except PostgrestAPIError as e:
+        if "duplicate key value" in str(e):
+            raise HTTPException(status_code=409, detail="La cédula ya se encuentra registrada.")
+        if "value too long" in str(e) or "invalid input syntax" in str(e):
+            raise HTTPException(status_code=422, detail="Datos proporcionados no válidos, por favor, revise los campos.")
+        raise HTTPException(status_code=500, detail=f"Error en el servidor: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error inesperado: {e}")
+
+    return {"message": "Paciente registrado exitosamente"}
 
 # -----------------------
 # LOGIN
