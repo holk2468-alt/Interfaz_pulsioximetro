@@ -314,9 +314,9 @@ async def delete_medicion(id: int, token: str = Depends(oauth2_scheme)):
 # -----------------------
 # CONSULTAR MEDICIONES
 # -----------------------
-router.get("/mediciones")
+@router.get("/mediciones")
 async def get_mediciones(
-    token: str = Depends(oauth2_scheme),
+    token: str = Depends(oauth2_scheme),
     cedula: str = None,
     rol: str = None,
     fecha_min: str = None,
@@ -333,61 +333,40 @@ async def get_mediciones(
     rol_usuario = usuario["rol"]
     cedula_usuario = str(usuario["sub"])
 
-    usuarios_all = supabase.table("usuarios").select("cedula", "rol").execute().data or []
-
-    # Lógica de permisos para la cédula
-    if rol_usuario == "paciente":
-        cedulas_validas = [cedula_usuario]
-    elif rol_usuario == "medico":
-        pacientes = [str(u["cedula"]) for u in usuarios_all if u["rol"] == "paciente"]
-        cedulas_validas = pacientes + [str(cedula_usuario)]
-    elif rol_usuario == "admin":
-        cedulas_validas = [str(u["cedula"]) for u in usuarios_all]
-    else:
-        raise HTTPException(status_code=403, detail="Rol de usuario no válido")
-
     query = supabase.table("mediciones").select("*")
 
-    # Se aplican los filtros de cédula y rol
+    # Lógica de permisos para filtrar por cédula
     if rol_usuario == "paciente":
-        if cedula and cedula != cedula_usuario:
-            raise HTTPException(status_code=403, detail="No autorizado a ver mediciones de otro paciente")
+        # Un paciente solo puede ver sus propias mediciones, ignoramos cualquier filtro de cédula
         query = query.eq("cedula_paciente", cedula_usuario)
     elif cedula:
+        # Médicos y admins pueden filtrar por cédula
+        usuarios_all = supabase.table("usuarios").select("cedula", "rol").execute().data or []
+        cedulas_validas = []
+        if rol_usuario == "medico":
+            cedulas_validas = [str(u["cedula"]) for u in usuarios_all if u["rol"] == "paciente"]
+        elif rol_usuario == "admin":
+            cedulas_validas = [str(u["cedula"]) for u in usuarios_all]
+        
         if cedula not in cedulas_validas:
             raise HTTPException(status_code=403, detail="No autorizado a ver este paciente")
         query = query.eq("cedula_paciente", cedula)
-    else:
-        query = query.in_("cedula_paciente", cedulas_validas)
 
-    if rol and rol_usuario == "admin":
-        cedulas_filtradas_por_rol = [str(u["cedula"]) for u in usuarios_all if u["rol"] == rol]
-        if not cedulas_filtradas_por_rol:
-            return {"mediciones": []}
-        query = query.in_("cedula_paciente", cedulas_filtradas_por_rol)
-    elif rol:
-        raise HTTPException(status_code=403, detail="No autorizado a filtrar por rol")
-
-    # Filtros adicionales
+    # Filtros de fecha y valores
     if fecha_min:
         if len(fecha_min) == 10:
             fecha_min += "T00:00:00"
         query = query.gte("fecha_hora", fecha_min)
-        
     if fecha_max:
         if len(fecha_max) == 10:
             fecha_max += "T23:59:59"
         query = query.lte("fecha_hora", fecha_max)
-    
     if spo2_min is not None:
         query = query.gte("spo2", spo2_min)
-        
     if spo2_max is not None:
         query = query.lte("spo2", spo2_max)
-
     if ritmo_min is not None:
         query = query.gte("ritmo_cardiaco", ritmo_min)
-        
     if ritmo_max is not None:
         query = query.lte("ritmo_cardiaco", ritmo_max)
 
