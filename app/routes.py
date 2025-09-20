@@ -40,13 +40,13 @@ async def register_paciente(new_paciente: PacienteRegister):
         # 1. Verificar si la cédula ya existe
         existing = supabase.table("usuarios").select("cedula").eq("cedula", new_paciente.cedula).execute()
         if existing.data:
-            # Mensaje específico para cédula ya registrada
             raise HTTPException(status_code=409, detail="La cédula ya se encuentra registrada.")
 
         # 2. Hashear la contraseña y preparar los datos
-        data_to_insert = new_paciente.model_dump() # `model_dump()` es la forma moderna
+        data_to_insert = new_paciente.model_dump()
         password_to_hash = data_to_insert.pop("password")
-        data_to_insert["password"] = hash_password(password_to_hash)
+        # Aquí la corrección: se guarda en la columna 'password'
+        data_to_insert["password"] = hash_password(password_to_hash) 
         data_to_insert["rol"] = "paciente"
 
         # 3. Insertar en Supabase
@@ -57,9 +57,10 @@ async def register_paciente(new_paciente: PacienteRegister):
         if isinstance(e, HTTPException):
             raise e
         # Este mensaje se activará si el validador de Pydantic falla
-        if "value_error.url.scheme" in str(e) or "value_error" in str(e):
-             raise HTTPException(status_code=422, detail="Datos proporcionados no válidos, por favor, revise los campos.")
+        if "value_error" in str(e):
+             raise HTTPException(status_code=422, detail="Datos proporcionados no válidos. La cédula debe contener solo números.")
         
+        # Mensaje genérico para cualquier otro error
         print(f"Error inesperado en el registro: {e}")
         raise HTTPException(status_code=500, detail="Ocurrió un error inesperado en el registro.")
 
