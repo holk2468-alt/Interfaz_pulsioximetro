@@ -314,7 +314,7 @@ async def delete_medicion(id: int, token: str = Depends(oauth2_scheme)):
 # -----------------------
 # CONSULTAR MEDICIONES
 # -----------------------
-@router.get("/mediciones")
+router.get("/mediciones")
 async def get_mediciones(
     token: str = Depends(oauth2_scheme),
     cedula: str = None,
