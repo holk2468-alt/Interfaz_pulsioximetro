@@ -316,87 +316,88 @@ async def delete_medicion(id: int, token: str = Depends(oauth2_scheme)):
 # -----------------------
 @router.get("/mediciones")
 async def get_mediciones(
-    token: str = Depends(oauth2_scheme),
-    cedula: str = None,
-    rol: str = None,
-    fecha_min: str = None,
-    fecha_max: str = None,
-    spo2_min: Optional[int] = None, # Ajuste de tipo
-    spo2_max: Optional[int] = None, # Ajuste de tipo
-    ritmo_min: Optional[int] = None, # Ajuste de tipo
-    ritmo_max: Optional[int] = None, # Ajuste de tipo
+    token: str = Depends(oauth2_scheme),
+    cedula: str = None,
+    rol: str = None,
+    fecha_min: str = None,
+    fecha_max: str = None,
+    spo2_min: Optional[int] = None,
+    spo2_max: Optional[int] = None,
+    ritmo_min: Optional[int] = None,
+    ritmo_max: Optional[int] = None,
 ):
-    usuario = decode_token(token)
-    if not usuario:
-        raise HTTPException(status_code=401, detail="No autenticado")
+    usuario = decode_token(token)
+    if not usuario:
+        raise HTTPException(status_code=401, detail="No autenticado")
 
-    rol_usuario = usuario["rol"]
-    cedula_usuario = usuario["sub"]
+    rol_usuario = usuario["rol"]
+    cedula_usuario = str(usuario["sub"])
 
-    usuarios_all = supabase.table("usuarios").select("cedula", "rol").execute().data or []
+    usuarios_all = supabase.table("usuarios").select("cedula", "rol").execute().data or []
 
-    if rol_usuario == "paciente":
-        cedulas_validas = [cedula_usuario]
-        if rol:
-            raise HTTPException(status_code=403, detail="No autorizado a filtrar por rol")
-    elif rol_usuario == "medico":
-        pacientes = [str(u["cedula"]) for u in usuarios_all if u["rol"] == "paciente"]
-        cedulas_validas = pacientes + [str(cedula_usuario)]
-        if rol:
-            raise HTTPException(status_code=403, detail="No autorizado a filtrar por rol")
-    elif rol_usuario == "admin":
-        cedulas_validas = [str(u["cedula"]) for u in usuarios_all]
-        if rol and rol not in ["paciente", "medico", "admin"]:
-            raise HTTPException(status_code=400, detail="Rol inválido para filtrar")
-    else:
-        raise HTTPException(status_code=403, detail="Rol de usuario no válido")
+    # Lógica de permisos para la cédula
+    if rol_usuario == "paciente":
+        cedulas_validas = [cedula_usuario]
+    elif rol_usuario == "medico":
+        pacientes = [str(u["cedula"]) for u in usuarios_all if u["rol"] == "paciente"]
+        cedulas_validas = pacientes + [str(cedula_usuario)]
+    elif rol_usuario == "admin":
+        cedulas_validas = [str(u["cedula"]) for u in usuarios_all]
+    else:
+        raise HTTPException(status_code=403, detail="Rol de usuario no válido")
 
-    query = supabase.table("mediciones").select("*")
+    query = supabase.table("mediciones").select("*")
 
-    if cedula:
-        if rol_usuario == "paciente":
-            raise HTTPException(status_code=403, detail="No autorizado a filtrar por cédula")
-        if cedula not in cedulas_validas:
-            raise HTTPException(status_code=403, detail="No autorizado a ver este paciente")
-        query = query.eq("cedula_paciente", cedula)
-    else:
-        query = query.in_("cedula_paciente", cedulas_validas)
+    # Se aplican los filtros de cédula y rol
+    if rol_usuario == "paciente":
+        if cedula and cedula != cedula_usuario:
+            raise HTTPException(status_code=403, detail="No autorizado a ver mediciones de otro paciente")
+        query = query.eq("cedula_paciente", cedula_usuario)
+    elif cedula:
+        if cedula not in cedulas_validas:
+            raise HTTPException(status_code=403, detail="No autorizado a ver este paciente")
+        query = query.eq("cedula_paciente", cedula)
+    else:
+        query = query.in_("cedula_paciente", cedulas_validas)
 
-    if rol and rol_usuario == "admin":
-        cedulas_filtradas_por_rol = [str(u["cedula"]) for u in usuarios_all if u["rol"] == rol]
-        if not cedulas_filtradas_por_rol:
-            return {"mediciones": []}
-        query = query.in_("cedula_paciente", cedulas_filtradas_por_rol)
+    if rol and rol_usuario == "admin":
+        cedulas_filtradas_por_rol = [str(u["cedula"]) for u in usuarios_all if u["rol"] == rol]
+        if not cedulas_filtradas_por_rol:
+            return {"mediciones": []}
+        query = query.in_("cedula_paciente", cedulas_filtradas_por_rol)
+    elif rol:
+        raise HTTPException(status_code=403, detail="No autorizado a filtrar por rol")
 
-    if fecha_min:
-        if len(fecha_min) == 10:
-            fecha_min += "T00:00:00"
-        query = query.gte("fecha_hora", fecha_min)
-        
-    if fecha_max:
-        if len(fecha_max) == 10:
-            fecha_max += "T23:59:59"
-        query = query.lte("fecha_hora", fecha_max)
-    
-    if spo2_min is not None:
-        query = query.gte("spo2", spo2_min)
-        
-    if spo2_max is not None:
-        query = query.lte("spo2", spo2_max)
+    # Filtros adicionales
+    if fecha_min:
+        if len(fecha_min) == 10:
+            fecha_min += "T00:00:00"
+        query = query.gte("fecha_hora", fecha_min)
+        
+    if fecha_max:
+        if len(fecha_max) == 10:
+            fecha_max += "T23:59:59"
+        query = query.lte("fecha_hora", fecha_max)
+    
+    if spo2_min is not None:
+        query = query.gte("spo2", spo2_min)
+        
+    if spo2_max is not None:
+        query = query.lte("spo2", spo2_max)
 
-    if ritmo_min is not None:
-        query = query.gte("ritmo_cardiaco", ritmo_min)
-        
-    if ritmo_max is not None:
-        query = query.lte("ritmo_cardiaco", ritmo_max)
+    if ritmo_min is not None:
+        query = query.gte("ritmo_cardiaco", ritmo_min)
+        
+    if ritmo_max is not None:
+        query = query.lte("ritmo_cardiaco", ritmo_max)
 
-    result = query.execute()
-    filas = result.data or []
+    result = query.execute()
+    filas = result.data or []
 
-    filas.sort(key=lambda x: x["fecha_hora"], reverse=True)
-    filas.sort(key=lambda x: x["cedula_paciente"])
+    filas.sort(key=lambda x: x["fecha_hora"], reverse=True)
+    filas.sort(key=lambda x: x["cedula_paciente"])
 
-    return {"mediciones": filas}
+    return {"mediciones": filas}
 # -----------------------
 # CONSULTAR ALERTAS
 # -----------------------
