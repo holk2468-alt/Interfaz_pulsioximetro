@@ -24,28 +24,44 @@ class PacienteRegister(BaseModel):
     fecha_nacimiento: str
     genero: str = Field(..., pattern="^(M|F)$")
 
+    @field_validator("cedula")
+    @classmethod
+    def validate_cedula_numeric(cls, v: str) -> str:
+        if not v.isdigit():
+            raise ValueError("La cédula debe contener solo números.")
+        return v
 
 # -----------------------
 # REGISTRO PARA PACIENTES
 # -----------------------
-@router.post("/register_paciente")
+@router.post("/register_paciente", status_code=201)
 async def register_paciente(new_paciente: PacienteRegister):
     try:
+        # 1. Verificar si la cédula ya existe
         existing = supabase.table("usuarios").select("cedula").eq("cedula", new_paciente.cedula).execute()
         if existing.data:
-            raise HTTPException(status_code=400, detail="Cédula ya registrada")
+            # Mensaje específico para cédula ya registrada
+            raise HTTPException(status_code=409, detail="La cédula ya se encuentra registrada.")
 
-        data_to_insert = new_paciente.dict()
+        # 2. Hashear la contraseña y preparar los datos
+        data_to_insert = new_paciente.model_dump() # `model_dump()` es la forma moderna
         password_to_hash = data_to_insert.pop("password")
-        data_to_insert["password_hash"] = hash_password(password_to_hash)
+        data_to_insert["password"] = hash_password(password_to_hash)
         data_to_insert["rol"] = "paciente"
 
+        # 3. Insertar en Supabase
         supabase.table("usuarios").insert(data_to_insert).execute()
         return {"mensaje": "Usuario registrado exitosamente como paciente"}
     except Exception as e:
-        print(f"Error en el registro: {e}")
-        raise HTTPException(status_code=500, detail="Ocurrió un error en el registro")
-
+        # Manejo de errores para que los mensajes sean claros y específicos
+        if isinstance(e, HTTPException):
+            raise e
+        # Este mensaje se activará si el validador de Pydantic falla
+        if "value_error.url.scheme" in str(e) or "value_error" in str(e):
+             raise HTTPException(status_code=422, detail="Datos proporcionados no válidos, por favor, revise los campos.")
+        
+        print(f"Error inesperado en el registro: {e}")
+        raise HTTPException(status_code=500, detail="Ocurrió un error inesperado en el registro.")
 
 # -----------------------
 # LOGIN
