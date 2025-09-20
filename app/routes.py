@@ -368,7 +368,6 @@ async def get_mediciones(
             return {"mediciones": []}
         query = query.in_("cedula_paciente", cedulas_filtradas_por_rol)
 
-    # --- Lógica de filtros ajustada ---
     if fecha_min:
         if len(fecha_min) == 10:
             fecha_min += "T00:00:00"
