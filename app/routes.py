@@ -253,42 +253,87 @@ async def delete_usuario(cedula_eliminar: int, token: str = Depends(oauth2_schem
 # -----------------------
 # ACTUALIZAR MEDICIONES
 # -----------------------
-@router.put("/mediciones/{id}")
-async def update_medicion(id: int, datos: dict, token: str = Depends(oauth2_scheme)):
-    usuario = decode_token(token)
-    if not usuario:
-        raise HTTPException(status_code=401, detail="No autenticado")
+@router.get("/mediciones")
+async def get_mediciones(
+    token: str = Depends(oauth2_scheme),
+    cedula: str = None,
+    rol: str = None,
+    fecha_min: str = None,
+    fecha_max: str = None,
+    spo2_min: Optional[int] = None,
+    spo2_max: Optional[int] = None,
+    ritmo_min: Optional[int] = None,
+    ritmo_max: Optional[int] = None,
+):
+    try:
+        usuario = decode_token(token)
+    except:
+        raise HTTPException(status_code=401, detail="No autenticado o token inválido")
 
-    rol = usuario["rol"]
-    cedula = usuario["sub"]
+    rol_usuario = usuario.get("rol")
+    cedula_usuario = str(usuario.get("sub"))
 
-    if rol == "paciente":
-        raise HTTPException(status_code=403, detail="No autorizado para actualizar mediciones")
+    if not rol_usuario or not cedula_usuario:
+        raise HTTPException(status_code=401, detail="Token no contiene la información necesaria")
 
-    campos_prohibidos = ["id", "cedula_paciente"]
-    for campo in campos_prohibidos:
-        if campo in datos:
-            raise HTTPException(status_code=400, detail=f"No se puede actualizar el campo '{campo}'")
+    query = supabase.table("mediciones").select("*")
 
-    result = supabase.table("mediciones").select("*").eq("id", id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Medición no encontrada")
+    # Lógica de permisos
+    if rol_usuario == "paciente":
+        # Un paciente solo puede ver sus propias mediciones.
+        # No se le permite ver mediciones de otros pacientes, ni filtrar por cédula de forma explícita.
+        if cedula and cedula != cedula_usuario:
+            raise HTTPException(status_code=403, detail="No autorizado a ver mediciones de otro paciente")
+        query = query.eq("cedula_paciente", cedula_usuario)
+    
+    elif rol_usuario == "medico":
+        # Un médico puede ver las mediciones de todos los pacientes.
+        if cedula:
+            usuarios_pacientes = supabase.table("usuarios").select("cedula").eq("rol", "paciente").execute().data or []
+            cedulas_pacientes = [str(u["cedula"]) for u in usuarios_pacientes]
+            if cedula not in cedulas_pacientes:
+                raise HTTPException(status_code=403, detail="No autorizado a ver este paciente")
+            query = query.eq("cedula_paciente", cedula)
+        else:
+            # Si el médico no proporciona una cédula, no aplicamos un filtro por cédula para que vea todo.
+            pass
+            
+    elif rol_usuario == "admin":
+        # Un admin puede ver todas las mediciones y aplicar cualquier filtro.
+        if cedula:
+            query = query.eq("cedula_paciente", cedula)
+        if rol:
+            usuarios_filtrados = supabase.table("usuarios").select("cedula").eq("rol", rol).execute().data or []
+            cedulas_filtradas = [str(u["cedula"]) for u in usuarios_filtrados]
+            if not cedulas_filtradas:
+                return {"mediciones": []}
+            query = query.in_("cedula_paciente", cedulas_filtradas)
+            
+    else:
+        raise HTTPException(status_code=403, detail="Rol de usuario no válido")
 
-    medicion = result.data[0]
+    # Filtros adicionales
+    if fecha_min:
+        if len(fecha_min) == 10:
+            fecha_min += "T00:00:00"
+        query = query.gte("fecha_hora", fecha_min)
+    if fecha_max:
+        if len(fecha_max) == 10:
+            fecha_max += "T23:59:59"
+        query = query.lte("fecha_hora", fecha_max)
+    if spo2_min is not None:
+        query = query.gte("spo2", spo2_min)
+    if spo2_max is not None:
+        query = query.lte("spo2", spo2_max)
+    if ritmo_min is not None:
+        query = query.gte("ritmo_cardiaco", ritmo_min)
+    if ritmo_max is not None:
+        query = query.lte("ritmo_cardiaco", ritmo_max)
 
-    if rol == "medico":
-        if medicion["cedula_paciente"] != cedula and supabase.table("usuarios").select("rol").eq("cedula", medicion["cedula_paciente"]).execute().data[0]["rol"] != "paciente":
-            raise HTTPException(status_code=403, detail="No autorizado para actualizar esta medición")
-
-    campos_permitidos = ["ritmo_cardiaco", "spo2", "fecha_hora"]
-    datos_filtrados = {k: v for k, v in datos.items() if k in campos_permitidos}
-
-    if not datos_filtrados:
-        raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")
-
-    supabase.table("mediciones").update(datos_filtrados).eq("id", id).execute()
-    return {"mensaje": "Medición actualizada exitosamente"}
-
+    result = query.order("fecha_hora", desc=True).execute()
+    filas = result.data or []
+    
+    return {"mediciones": filas}
 
 # -----------------------
 # ELIMINAR MEDICIONES
