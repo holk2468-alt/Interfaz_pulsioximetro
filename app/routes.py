@@ -4,16 +4,16 @@ from app.database import supabase
 from app.auth import verify_password, create_access_token, decode_token, hash_password
 
 from datetime import datetime,date
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator,validator
 from typing import Optional
-
+from fastapi import HTTPException
 router = APIRouter()
 
 # OAuth2 para Swagger
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-from pydantic import BaseModel, EmailStr, validator
-from fastapi import HTTPException
+
+
 
 # --- MODELO PARA REGISTRO ---
 class PacienteRegister(BaseModel):
