@@ -321,10 +321,10 @@ async def get_mediciones(
     rol: str = None,
     fecha_min: str = None,
     fecha_max: str = None,
-    spo2_min: int = None,
-    spo2_max: int = None,
-    ritmo_min: int = None,
-    ritmo_max: int = None,
+    spo2_min: Optional[int] = None, # Ajuste de tipo
+    spo2_max: Optional[int] = None, # Ajuste de tipo
+    ritmo_min: Optional[int] = None, # Ajuste de tipo
+    ritmo_max: Optional[int] = None, # Ajuste de tipo
 ):
     usuario = decode_token(token)
     if not usuario:
@@ -368,10 +368,12 @@ async def get_mediciones(
             return {"mediciones": []}
         query = query.in_("cedula_paciente", cedulas_filtradas_por_rol)
 
+    # --- Lógica de filtros ajustada ---
     if fecha_min:
         if len(fecha_min) == 10:
             fecha_min += "T00:00:00"
         query = query.gte("fecha_hora", fecha_min)
+        
     if fecha_max:
         if len(fecha_max) == 10:
             fecha_max += "T23:59:59"
@@ -379,11 +381,13 @@ async def get_mediciones(
     
     if spo2_min is not None:
         query = query.gte("spo2", spo2_min)
+        
     if spo2_max is not None:
         query = query.lte("spo2", spo2_max)
 
     if ritmo_min is not None:
         query = query.gte("ritmo_cardiaco", ritmo_min)
+        
     if ritmo_max is not None:
         query = query.lte("ritmo_cardiaco", ritmo_max)
 
@@ -394,7 +398,6 @@ async def get_mediciones(
     filas.sort(key=lambda x: x["cedula_paciente"])
 
     return {"mediciones": filas}
-
 # -----------------------
 # CONSULTAR ALERTAS
 # -----------------------
