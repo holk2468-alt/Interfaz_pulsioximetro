@@ -45,7 +45,7 @@ async def register_paciente(new_paciente: PacienteRegister):
         # 2. Hashear la contraseña y preparar los datos
         data_to_insert = new_paciente.model_dump()
         password_to_hash = data_to_insert.pop("password")
-        # Aquí la corrección: se guarda en la columna 'password'
+        # Corrección: se guarda en la columna 'password'
         data_to_insert["password"] = hash_password(password_to_hash) 
         data_to_insert["rol"] = "paciente"
 
@@ -63,7 +63,6 @@ async def register_paciente(new_paciente: PacienteRegister):
         # Mensaje genérico para cualquier otro error
         print(f"Error inesperado en el registro: {e}")
         raise HTTPException(status_code=500, detail="Ocurrió un error inesperado en el registro.")
-
 # -----------------------
 # LOGIN
 # -----------------------
