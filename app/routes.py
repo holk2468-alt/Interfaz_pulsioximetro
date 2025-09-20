@@ -342,27 +342,25 @@ async def get_mediciones(
 
     query = supabase.table("mediciones").select("*")
 
-    # Lógica de permisos y filtros
+    # Lógica de permisos
     if rol_usuario == "paciente":
-        # Un paciente solo puede ver sus propias mediciones.
         if cedula and cedula != cedula_usuario:
             raise HTTPException(status_code=403, detail="No autorizado a ver mediciones de otro paciente")
         query = query.eq("cedula_paciente", cedula_usuario)
     
     elif rol_usuario == "medico":
-        # Un médico puede ver las mediciones de todos los pacientes.
-        usuarios_pacientes = supabase.table("usuarios").select("cedula").eq("rol", "paciente").execute().data or []
-        cedulas_pacientes = [str(u["cedula"]) for u in usuarios_pacientes]
-        
         if cedula:
+            usuarios_pacientes = supabase.table("usuarios").select("cedula").eq("rol", "paciente").execute().data or []
+            cedulas_pacientes = [str(u["cedula"]) for u in usuarios_pacientes]
             if cedula not in cedulas_pacientes:
                 raise HTTPException(status_code=403, detail="No autorizado a ver este paciente")
             query = query.eq("cedula_paciente", cedula)
         else:
+            usuarios_pacientes = supabase.table("usuarios").select("cedula").eq("rol", "paciente").execute().data or []
+            cedulas_pacientes = [str(u["cedula"]) for u in usuarios_pacientes]
             query = query.in_("cedula_paciente", cedulas_pacientes)
             
     elif rol_usuario == "admin":
-        # Un admin puede ver todas las mediciones y aplicar filtros.
         if cedula:
             query = query.eq("cedula_paciente", cedula)
         if rol:
@@ -397,6 +395,7 @@ async def get_mediciones(
     filas = result.data or []
     
     return {"mediciones": filas}
+
 # -----------------------
 # CONSULTAR ALERTAS
 # -----------------------
