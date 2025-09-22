@@ -4,10 +4,11 @@ from app.routes import router
 
 app = FastAPI()
 
-# La configuración de CORS debe ir aquí, justo después de app = FastAPI()
+# Configuración de CORS para permitir solicitudes desde el frontend en Vercel
 origins = [
     "http://localhost:3000",
-    "https://interfaz-pulsioximetro.onrender.com"
+    "https://interfaz-pulsioximetro.onrender.com",
+    "https://frontend-pulsioximetro.vercel.app"
 ]
 
 app.add_middleware(
