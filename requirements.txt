@@ -2,7 +2,8 @@ fastapi
 uvicorn
 python-dotenv
 supabase
-passlib[bcrypt]
+passlib==1.7.4      # Versión estable de passlib
+bcrypt==4.1.2       # Versión conocida por ser estable y compatible con passlib
 python-jose[cryptography]
 pydantic
 python-multipart
