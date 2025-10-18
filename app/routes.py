@@ -481,7 +481,7 @@ async def update_alerta(id: int, datos: AlertaUpdate, token: str = Depends(oauth
         raise HTTPException(status_code=401, detail="No autenticado")
 
     rol = usuario["rol"]
-    if rol not in ["medico"]:
+    if rol not in ["medico","admin"]:
         raise HTTPException(status_code=403, detail="No autorizado para actualizar alertas")
     
     result = supabase.table("alertas").select("id").eq("id", id).execute()
